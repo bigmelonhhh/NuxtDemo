@@ -1,0 +1,188 @@
+# AGENTS.md
+
+## Scope and priority
+
+This file applies to the entire repository. A more deeply nested `AGENTS.md`, when present, overrides it only for that subtree. Direct user instructions take priority over repository guidance.
+
+This is a Nuxt 4 application for the Chinese medical-technology website “智医康”. Preserve existing behavior, Chinese copy, the healthcare visual language, and desktop/mobile usability unless the task explicitly changes them.
+
+## Project facts
+
+- Nuxt `4.4.7` using the Nuxt 4 `app/` source directory.
+- Vue `3.5`, TypeScript `5.9`, Pinia `3`, Nuxt UI `4.8`, and Tailwind CSS `4`.
+- Nitro server routes live in `server/`.
+- `@pinia/nuxt`, `@nuxt/eslint`, and `@nuxt/ui` are registered in `nuxt.config.ts`.
+- `app/app.vue` must keep `UApp` around `NuxtLayout` and `NuxtPage`.
+- `app/composables/useApi.ts` is the existing SSR-friendly API wrapper.
+- The browser-visible API base uses `runtimeConfig.public.apiBase` and `NUXT_PUBLIC_API_BASE`.
+
+## Commands
+
+Run from the repository root:
+
+```bash
+npm install
+npm run dev
+npm run lint
+npm run build
+npm run generate
+npm run preview
+npm run format
+```
+
+Additional checks:
+
+```bash
+python scripts/verify_nuxt_ui.py
+python scripts/verify_homepage.py http://127.0.0.1:3000
+```
+
+The homepage check requires a running server plus Python Playwright and Chromium. On Windows, bind the test server to IPv4 for the script address:
+
+```bash
+npm run dev -- --host 127.0.0.1
+```
+
+Do not run repository-wide `npm run format` unless broad formatting is requested; it rewrites files.
+
+## Repository map
+
+- `app/app.vue`: root component and global providers.
+- `app/pages/`: file-based routes; keep pages focused on route orchestration and composition.
+- `app/layouts/`: reusable route shells; layouts require one non-slot root element.
+- `app/components/`: reusable auto-imported UI components.
+- `app/composables/`: reusable auto-imported Vue/Nuxt behavior.
+- `app/stores/`: Pinia stores for genuinely shared application state.
+- `app/assets/styles/main.css`: Tailwind/Nuxt UI imports, tokens, resets, and site-wide styles.
+- `public/`: files served unchanged. Reference `public/static/x.webp` as `/static/x.webp`.
+- `server/api/`: Nitro `/api/*` handlers using file routing.
+- `shared/`: code and types intentionally used by both the Vue app and Nitro server.
+- `scripts/`: repository-specific validation utilities.
+- `.nuxt/`, `.output/`, `node_modules/`, `test-results/`: generated, installed, or output content; never edit them as source.
+
+Follow Nuxt 4 conventions. Do not create root-level `pages/`, `components/`, `composables/`, `layouts/`, or `stores/` directories.
+
+## Coding-agent workflow
+
+1. Read the relevant entrypoint, direct dependencies, and adjacent implementation before editing.
+2. Check `git status --short`; existing modifications are user-owned.
+3. Prefer CodeGraph for definitions, callers, callees, flows, and impact. Use `codegraph_context` then one `codegraph_explore` for architecture, or `codegraph_trace` then one `codegraph_explore` for a specific flow.
+4. Use `rg` for literal strings, copy, comments, logs, and file names. Do not grep to re-verify fresh CodeGraph structural results.
+5. If CodeGraph lists stale files, read only those files directly. If unavailable, use `rg` and targeted reads.
+6. Make the smallest coherent change. Avoid unrelated cleanup, dependency upgrades, abstractions, and rewrites.
+7. Reproduce failures and identify the root cause before changing code. Do not hide defects with timeouts, broad catches, client-only rendering, or disabled checks.
+8. Verify in proportion to risk and report exact commands and outcomes. Never claim an unrun check passed.
+
+## Nuxt and Vue conventions
+
+### Components and pages
+
+- Use Composition API and `<script setup lang="ts">` in new Vue files.
+- Prefer framework auto-imports for Nuxt/Vue composables, components, and Pinia stores. Explicitly import ordinary modules not covered by auto-imports.
+- Keep templates declarative. Put reusable stateful behavior in composables and reusable visual units in components.
+- Extract components when a pattern is reused, independently testable, or materially clarifies a large page. Avoid trivial wrappers.
+- Type props, emits, and return values. Avoid `any`, non-null assertions, suppression comments, and lint disables unless a documented limitation leaves no safe alternative.
+- Keep page-specific metadata with the page via `useSeoMeta`, `useHead`, or page metadata; keep global defaults in `nuxt.config.ts`.
+- Use `<NuxtLink>` for internal routes. Plain anchors remain appropriate for fragments and external links.
+
+### SSR and browser APIs
+
+- Assume pages and composables run during SSR. Do not access `window`, `document`, `localStorage`, `navigator`, or the DOM at module scope or in unguarded setup code.
+- Use `onMounted`/`onBeforeUnmount` or `import.meta.client` for browser-only behavior, and clean up timers, listeners, observers, and subscriptions.
+- Do not hide hydration errors by wrapping whole pages in `<ClientOnly>`; fix the server/client mismatch.
+- Use stable server/client initial values. Avoid render-time randomness, current timestamps, or locale-dependent output unless intentionally serialized or client-gated.
+
+### Data fetching and state
+
+- Use `await useFetch`, `await useAsyncData`, or existing `useApi<T>()` for SSR page data so Nuxt can serialize it and avoid duplicate hydration requests.
+- Use `$fetch` for event-driven mutations and one-off requests that do not need payload state.
+- Do not wrap `useFetch` in an ad-hoc async function that loses Nuxt context. Extend the current `useApi` pattern or use a Nuxt-supported custom-fetch mechanism.
+- Represent user-visible loading, empty, error, disabled, and success states explicitly.
+- Make request inputs reactive only when automatic refetching is intended.
+- Keep local UI state in its owner, reusable behavior in composables, SSR-safe lightweight shared state in `useState`, and cross-route/domain state in Pinia.
+- Do not store secrets, request-scoped server state, DOM nodes, class instances, or other non-serializable values in Pinia or Nuxt payload state.
+
+## Styling, Nuxt UI, and accessibility
+
+- Prefer existing Nuxt UI components such as `UButton`, `UCard`, and `UIcon` before rebuilding equivalent controls.
+- Keep `UApp` as the root wrapper. Prefer Nuxt UI props, variants, and semantic colors over brittle internal selectors.
+- Tailwind CSS 4 uses CSS-first configuration through `app/assets/styles/main.css`; do not add a legacy `tailwind.config.js` without a documented need.
+- Preserve existing CSS variables and the teal/green medical palette. Add reusable tokens rather than repeating unexplained color literals.
+- Keep global tokens and resets in `main.css`; colocate component-specific styles when that clarifies ownership. Avoid leaking broad selectors.
+- Design mobile-first and inspect a narrow mobile viewport and desktop viewport for visible changes.
+- Prefer semantic HTML to ARIA. Interactive elements require keyboard access, visible focus, and an accessible name.
+- Buttons perform actions; links navigate. Do not use clickable `<div>` elements for either.
+- Images need meaningful `alt` text unless decorative. Use stable dimensions or containers to reduce layout shift.
+- Maintain sufficient contrast, do not convey status by color alone, and respect reduced-motion preferences.
+
+## Nitro, configuration, and security
+
+- Define API handlers under `server/api/` with `defineEventHandler`; use method suffixes such as `.get.ts` and `.post.ts` for method-specific routes.
+- Validate path, query, header, and body input at the server boundary. Return deliberate status codes and safe errors.
+- Keep secrets in private `runtimeConfig`. Only browser-safe values belong in `runtimeConfig.public` with `NUXT_PUBLIC_*` environment names.
+- In server handlers, use `useRuntimeConfig(event)` when request context matters.
+- Never expose private config through rendered state, API responses, logs, `useState`, or Pinia.
+- Do not commit `.env`, credentials, tokens, private URLs, or production data. Put only non-secret placeholders in `.env.example`.
+- Avoid `v-html`; if explicitly required, sanitize untrusted content at a defined boundary.
+- Browser-facing errors must not include stack traces, internal paths, or secret-bearing upstream responses.
+
+## Performance and maintainability
+
+- Do not add a dependency when Nuxt, Vue, Nuxt UI, the platform, or a small local helper solves the need clearly.
+- Lazy-load route-specific heavy components or browser-only libraries not needed for initial rendering.
+- Reuse optimized WebP files in `public/static/`; avoid duplicate or uncompressed media. Lazy-load below-the-fold images, not primary above-the-fold content without measurement.
+- Avoid deep watchers and large global reactive objects; prefer computed values and narrow sources.
+- Keep units focused and split by responsibility and stable interface, not arbitrary line count.
+- Comments explain constraints and non-obvious decisions, not the code's syntax.
+
+## Verification matrix
+
+| Change type | Required verification |
+|---|---|
+| Documentation only | `git diff --check`, review `git diff`, and verify paths, commands, and links |
+| Vue, TypeScript, composable, store, or CSS | `npm run lint` and `npm run build` |
+| Type-heavy API or shared contract | Above plus `npx nuxt typecheck` |
+| Homepage layout, responsive behavior, or interaction | Lint/build, running dev server, and `python scripts/verify_homepage.py http://127.0.0.1:3000` |
+| Nuxt UI integration/version expectations | Relevant checks plus `python scripts/verify_nuxt_ui.py` |
+| Nitro API handler | Lint/build and real requests covering success plus meaningful failure behavior |
+| Nuxt config, dependency, or build behavior | Lint/build, lockfile/config review, and a fresh startup-log review |
+
+For visible UI work, inspect the rendered result. Check console errors, broken images, overflow, focus behavior, and mobile/desktop states.
+
+If a check cannot run because a dependency, browser, service, or environment variable is unavailable, report the exact blocker and what did run. Do not weaken validation to make a task appear complete.
+
+## Git and delivery
+
+- Inspect `git status --short` before editing. Do not discard, reset, stage, or rewrite unrelated user changes.
+- Review the final diff for scope, generated files, accidental formatting, secrets, and debug output.
+- Do not create branches, commits, pushes, or pull requests unless requested or required by an explicitly invoked workflow.
+- Never use destructive Git commands such as `git reset --hard` or `git checkout --` on user work.
+- In the final report, lead with the outcome, list changed files, state verification results, and identify remaining risks or unrun checks.
+
+## Definition of done
+
+A change is complete only when all applicable statements are true:
+
+- Requested behavior works through the real user-visible entrypoint.
+- Implementation follows the Nuxt 4 directory and SSR boundaries above.
+- Affected loading, empty, error, disabled, and responsive states are handled.
+- Applicable lint, build, type, API, or browser checks have fresh evidence.
+- The diff contains no unrelated changes, generated output, secrets, temporary logs, or debug code.
+- Documentation and `.env.example` are updated when a public contract, command, or required variable changes.
+- The handoff distinguishes verified facts from assumptions and unverified items.
+
+## Prohibited shortcuts
+
+- Do not edit `.nuxt/`, `.output/`, `node_modules/`, or generated test artifacts as source.
+- Do not move Nuxt 4 application directories out of `app/`.
+- Do not expose private configuration through `runtimeConfig.public`.
+- Do not use broad client-only rendering to hide SSR or hydration defects.
+- Do not add `any`, suppression directives, lint disables, arbitrary timeouts, or catch-all exception handling merely to silence a failure.
+- Do not replace working Nuxt UI, Pinia, or repository patterns with another library without an explicit requirement and evidence-backed justification.
+- Do not claim tests, builds, or browser checks passed unless current output was inspected.
+
+## Official references
+
+- [Nuxt 4 directory structure](https://nuxt.com/docs/4.x/directory-structure/)
+- [Nuxt `useFetch`](https://nuxt.com/docs/4.x/api/composables/use-fetch)
+- [Nuxt runtime config](https://nuxt.com/docs/4.x/guide/going-further/runtime-config)
